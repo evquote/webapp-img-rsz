@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bulk Image Resizer</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; text-align: center; color: #333; }
+        #drop-zone { border: 3px dashed #ccc; border-radius: 10px; padding: 50px; background: #f9f9f9; cursor: pointer; margin: 20px 0; transition: 0.3s; }
+        #drop-zone.hover { border-color: #4CAF50; background: #e8f5e9; }
+        select { padding: 10px; font-size: 16px; margin-bottom: 20px; width: 100%; max-width: 300px; }
+        button { background: #4CAF50; color: white; border: none; padding: 15px 30px; font-size: 16px; font-weight: bold; border-radius: 5px; cursor: pointer; }
+        button:hover { background: #45a049; }
+        #status { margin-top: 20px; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <h2>Bulk Image Resizer</h2>
+    
+    <select id="size-selector">
+        <option value="1920,1080">16:9 Widescreen (1920x1080)</option>
+        <option value="1080,1080">1:1 Square (1080x1080)</option>
+        <option value="1024,768">4:3 Standard (1024x768)</option>
+        <option value="1080,1920">9:16 Vertical/Social (1080x1920)</option>
+    </select>
+
+    <div id="drop-zone">
+        <p><strong>Drag & Drop images here</strong><br>or click to select files</p>
+        <input type="file" id="file-input" multiple accept="image/*" style="display: none;">
+    </div>
+
+    <button onclick="processImages()">Resize & Download</button>
+    <div id="status"></div>
+
+    <script>
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        let selectedFiles = [];
+
+        // Drag and drop event listeners
+        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('hover'); });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('hover'));
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('hover');
+            handleFiles(e.dataTransfer.files);
+        });
+        fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+
+        function handleFiles(files) {
+            selectedFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
+            document.getElementById('status').innerText = `${selectedFiles.length} images ready to process.`;
+        }
+
+        async function processImages() {
+            if (selectedFiles.length === 0) return alert("Please select images first.");
+            
+            const [targetW, targetH] = document.getElementById('size-selector').value.split(',').map(Number);
+            document.getElementById('status').innerText = "Processing...";
+
+            for (let i = 0; i < selectedFiles.length; i++) {
+                const file = selectedFiles[i];
+                const img = new Image();
+                const url = URL.createObjectURL(file);
+                
+                await new Promise((resolve) => {
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = targetW;
+                        canvas.height = targetH;
+                        const ctx = canvas.getContext('2d');
+
+                        // Calculate center crop
+                        const targetRatio = targetW / targetH;
+                        const imgRatio = img.width / img.height;
+                        let startX = 0, startY = 0, drawW = img.width, drawH = img.height;
+
+                        if (imgRatio > targetRatio) {
+                            drawW = img.height * targetRatio;
+                            startX = (img.width - drawW) / 2;
+                        } else {
+                            drawH = img.width / targetRatio;
+                            startY = (img.height - drawH) / 2;
+                        }
+
+                        // Draw and export
+                        ctx.drawImage(img, startX, startY, drawW, drawH, 0, 0, targetW, targetH);
+                        canvas.toBlob((blob) => {
+                            const link = document.createElement('a');
+                            link.href = URL.createObjectURL(blob);
+                            link.download = `resized_${file.name}`;
+                            link.click();
+                            resolve();
+                        }, 'image/jpeg', 0.95);
+                    };
+                    img.src = url;
+                });
+            }
+            document.getElementById('status').innerText = "Done! Check your downloads folder.";
+            selectedFiles = []; // Reset
+        }
+    </script>
+</body>
+</html>
