@@ -1,107 +1,349 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bulk Image Resizer</title>
-    <style>
-        body { font-family: Arial, sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; text-align: center; color: #333; }
-        #drop-zone { border: 3px dashed #ccc; border-radius: 10px; padding: 50px; background: #f9f9f9; cursor: pointer; margin: 20px 0; transition: 0.3s; }
-        #drop-zone.hover { border-color: #4CAF50; background: #e8f5e9; }
-        select { padding: 10px; font-size: 16px; margin-bottom: 20px; width: 100%; max-width: 300px; }
-        button { background: #4CAF50; color: white; border: none; padding: 15px 30px; font-size: 16px; font-weight: bold; border-radius: 5px; cursor: pointer; }
-        button:hover { background: #45a049; }
-        #status { margin-top: 20px; font-weight: bold; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Batch Image Studio</title>
+  <!-- JSZip for single-click bulk zip downloads -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --border: #e2e8f0;
+      --text: #0f172a;
+      --text-muted: #64748b;
+      --radius: 12px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); padding: 40px 20px; line-height: 1.5; }
+    .container { max-width: 760px; margin: 0 auto; }
+
+    header { text-align: center; margin-bottom: 28px; }
+    header h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; }
+    header p { color: var(--text-muted); font-size: 15px; margin-top: 4px; }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-bottom: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+
+    /* Drop Zone */
+    #drop-zone {
+      border: 2px dashed #cbd5e1;
+      border-radius: var(--radius);
+      padding: 44px 20px;
+      text-align: center;
+      background: #fafafa;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    #drop-zone:hover, #drop-zone.dragover { border-color: var(--primary); background: #eff6ff; }
+    .drop-icon { font-size: 32px; color: var(--text-muted); margin-bottom: 8px; }
+
+    /* Control Sections */
+    .section-title { font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 12px; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+
+    /* Dimension Inputs */
+    .preset-select { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px; background: white; margin-bottom: 12px; }
+    .custom-inputs { display: flex; gap: 10px; align-items: center; }
+    .custom-inputs input {
+      width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;
+    }
+
+    /* 3x3 Focus Alignment Grid */
+    .anchor-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+      width: 140px;
+      margin: 0 auto;
+    }
+    .anchor-btn {
+      height: 38px;
+      border: 1px solid var(--border);
+      background: #f1f5f9;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: 0.15s ease;
+    }
+    .anchor-btn .dot { width: 8px; height: 8px; border-radius: 50%; background: #94a3b8; }
+    .anchor-btn:hover { background: #e2e8f0; }
+    .anchor-btn.active { background: var(--primary); border-color: var(--primary); }
+    .anchor-btn.active .dot { background: white; }
+
+    /* Format & Quality */
+    .options-row { display: flex; gap: 16px; align-items: center; margin-top: 14px; }
+    .options-row select { padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px; }
+    .slider-container { display: flex; align-items: center; gap: 10px; flex: 1; font-size: 14px; color: var(--text-muted); }
+
+    /* Action & Progress */
+    button.primary-btn {
+      width: 100%;
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 14px;
+      font-size: 15px;
+      font-weight: 600;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    button.primary-btn:hover { background: var(--primary-hover); }
+    button.primary-btn:disabled { background: #94a3b8; cursor: not-allowed; }
+
+    .progress-bar-container { display: none; margin-top: 16px; background: #e2e8f0; height: 8px; border-radius: 99px; overflow: hidden; }
+    .progress-bar { width: 0%; height: 100%; background: var(--primary); transition: width 0.1s ease; }
+    #status-text { margin-top: 10px; font-size: 14px; text-align: center; color: var(--text-muted); }
+
+    /* File Preview List */
+    .preview-list { display: flex; gap: 10px; overflow-x: auto; padding: 10px 0; max-height: 120px; }
+    .preview-item { position: relative; width: 80px; height: 80px; flex-shrink: 0; border-radius: 6px; overflow: hidden; border: 1px solid var(--border); }
+    .preview-item img { width: 100%; height: 100%; object-fit: cover; }
+  </style>
 </head>
 <body>
 
-    <h2>Bulk Image Resizer</h2>
-    
-<select id="size-selector">
-        <option value="1920,1080">16:9 Widescreen (1920x1080)</option>
-        <option value="1080,1080">1:1 Square (1080x1080)</option>
-        <option value="1024,768">4:3 Standard (1024x768)</option>
-        <option value="1080,1920">9:16 Vertical/Social (1080x1920)</option>
-        <option value="620,414">Custom Size (620x414)</option>
-    </select>
+<div class="container">
+  <header>
+    <h1>Batch Image Studio</h1>
+    <p>Client-side batch cropper, resizer & format converter</p>
+  </header>
 
+  <!-- Upload Area -->
+  <div class="card">
     <div id="drop-zone">
-        <p><strong>Drag & Drop images here</strong><br>or click to select files</p>
-        <input type="file" id="file-input" multiple accept="image/*" style="display: none;">
+      <div class="drop-icon">📁</div>
+      <p style="font-weight: 600; font-size: 15px;">Drop your images here</p>
+      <p style="color: var(--text-muted); font-size: 13px; margin-top: 4px;">or click to browse from your device</p>
+      <input type="file" id="file-input" multiple accept="image/*" style="display: none;">
+    </div>
+    <div id="preview-list" class="preview-list"></div>
+  </div>
+
+  <!-- Adjustments Grid -->
+  <div class="card grid-2">
+    <!-- Dimensions -->
+    <div>
+      <div class="section-title">Output Dimensions</div>
+      <select id="preset-selector" class="preset-select" onchange="handlePresetChange()">
+        <option value="620x414">CMS (620 × 414)</option>
+        <option value="1920x1080">16:9 Widescreen (1920 × 1080)</option>
+        <option value="1080x1080">1:1 Social Media (1080 × 1080)</option>
+        <option value="1080x1920">9:16 Story / Reel (1080 × 1920)</option>
+        <option value="1200x630">Social Share / OG (1200 × 630)</option>
+        <option value="custom">Manual Input...</option>
+      </select>
+
+      <div class="custom-inputs">
+        <input type="number" id="target-w" value="620" placeholder="Width (px)">
+        <span style="color: var(--text-muted);">×</span>
+        <input type="number" id="target-h" value="414" placeholder="Height (px)">
+      </div>
     </div>
 
-    <button onclick="processImages()">Resize & Download</button>
-    <div id="status"></div>
+    <!-- Crop Focus Anchor -->
+    <div>
+      <div class="section-title" style="text-align: center;">Crop Focus / Anchor</div>
+      <div class="anchor-grid">
+        <div class="anchor-btn" data-x="0" data-y="0" title="Top Left"><div class="dot"></div></div>
+        <div class="anchor-btn" data-x="0.5" data-y="0" title="Top Center"><div class="dot"></div></div>
+        <div class="anchor-btn" data-x="1" data-y="0" title="Top Right"><div class="dot"></div></div>
+        <div class="anchor-btn" data-x="0" data-y="0.5" title="Center Left"><div class="dot"></div></div>
+        <div class="anchor-btn active" data-x="0.5" data-y="0.5" title="Center"><div class="dot"></div></div>
+        <div class="anchor-btn" data-x="1" data-y="0.5" title="Center Right"><div class="dot"></div></div>
+        <div class="anchor-btn" data-x="0" data-y="1" title="Bottom Left"><div class="dot"></div></div>
+        <div class="anchor-btn" data-x="0.5" data-y="1" title="Bottom Center"><div class="dot"></div></div>
+        <div class="anchor-btn" data-x="1" data-y="1" title="Bottom Right"><div class="dot"></div></div>
+      </div>
+    </div>
+  </div>
 
-    <script>
-        const dropZone = document.getElementById('drop-zone');
-        const fileInput = document.getElementById('file-input');
-        let selectedFiles = [];
+  <!-- Export Options -->
+  <div class="card">
+    <div class="section-title">Format & Quality</div>
+    <div class="options-row">
+      <select id="format-select">
+        <option value="image/jpeg">JPEG (.jpg)</option>
+        <option value="image/png">PNG (.png)</option>
+        <option value="image/webp">WebP (.webp)</option>
+      </select>
+      <div class="slider-container">
+        <span>Quality:</span>
+        <input type="range" id="quality-slider" min="0.5" max="1" step="0.05" value="0.9" style="flex: 1;">
+        <span id="quality-label">90%</span>
+      </div>
+    </div>
+  </div>
 
-        // Drag and drop event listeners
-        dropZone.addEventListener('click', () => fileInput.click());
-        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('hover'); });
-        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('hover'));
-        dropZone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            dropZone.classList.remove('hover');
-            handleFiles(e.dataTransfer.files);
-        });
-        fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+  <!-- Actions -->
+  <button id="process-btn" class="primary-btn" onclick="startBatchProcess()">Process & Download (.ZIP)</button>
+  <div class="progress-bar-container" id="progress-container">
+    <div class="progress-bar" id="progress-bar"></div>
+  </div>
+  <div id="status-text"></div>
+</div>
 
-        function handleFiles(files) {
-            selectedFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
-            document.getElementById('status').innerText = `${selectedFiles.length} images ready to process.`;
+<script>
+  let filesQueue = [];
+  let anchor = { x: 0.5, y: 0.5 };
+
+  // Drag and drop setup
+  const dropZone = document.getElementById('drop-zone');
+  const fileInput = document.getElementById('file-input');
+  const previewList = document.getElementById('preview-list');
+
+  dropZone.addEventListener('click', () => fileInput.click());
+  dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+  dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    queueFiles(e.dataTransfer.files);
+  });
+  fileInput.addEventListener('change', (e) => queueFiles(e.target.files));
+
+  function queueFiles(files) {
+    filesQueue = Array.from(files).filter(f => f.type.startsWith('image/'));
+    previewList.innerHTML = '';
+    
+    filesQueue.forEach(file => {
+      const item = document.createElement('div');
+      item.className = 'preview-item';
+      const img = document.createElement('img');
+      img.src = URL.createObjectURL(file);
+      item.appendChild(img);
+      previewList.appendChild(item);
+    });
+
+    document.getElementById('status-text').innerText = `${filesQueue.length} images queued for processing.`;
+  }
+
+  // Anchor selection logic
+  document.querySelectorAll('.anchor-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.anchor-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      anchor.x = parseFloat(btn.dataset.x);
+      anchor.y = parseFloat(btn.dataset.y);
+    });
+  });
+
+  // Preset switching
+  function handlePresetChange() {
+    const val = document.getElementById('preset-selector').value;
+    if (val !== 'custom') {
+      const [w, h] = val.split('x');
+      document.getElementById('target-w').value = w;
+      document.getElementById('target-h').value = h;
+    }
+  }
+
+  // Quality slider label
+  document.getElementById('quality-slider').addEventListener('input', (e) => {
+    document.getElementById('quality-label').innerText = Math.round(e.target.value * 100) + '%';
+  });
+
+  // Main Processing Engine
+  async function startBatchProcess() {
+    if (filesQueue.length === 0) return alert('Please upload images first.');
+
+    const targetW = parseInt(document.getElementById('target-w').value, 10);
+    const targetH = parseInt(document.getElementById('target-h').value, 10);
+    const format = document.getElementById('format-select').value;
+    const quality = parseFloat(document.getElementById('quality-slider').value);
+    
+    if (!targetW || !targetH) return alert('Please enter valid target dimensions.');
+
+    const processBtn = document.getElementById('process-btn');
+    const statusText = document.getElementById('status-text');
+    const progressBar = document.getElementById('progress-bar');
+    const progressContainer = document.getElementById('progress-container');
+
+    processBtn.disabled = true;
+    progressContainer.style.display = 'block';
+
+    const zip = typeof JSZip !== 'undefined' ? new JSZip() : null;
+    const extension = format === 'image/jpeg' ? 'jpg' : (format === 'image/png' ? 'png' : 'webp');
+
+    for (let i = 0; i < filesQueue.length; i++) {
+      const file = filesQueue[i];
+      statusText.innerText = `Processing ${i + 1} of ${filesQueue.length}: ${file.name}`;
+      
+      const blob = await processSingleImage(file, targetW, targetH, format, quality, anchor);
+      
+      const cleanName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+      const finalFileName = `${cleanName}_${targetW}x${targetH}.${extension}`;
+
+      if (zip) {
+        zip.file(finalFileName, blob);
+      } else {
+        // Fallback if CDN is blocked: Direct individual download
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = finalFileName;
+        link.click();
+      }
+
+      const pct = Math.round(((i + 1) / filesQueue.length) * 100);
+      progressBar.style.width = pct + '%';
+    }
+
+    if (zip) {
+      statusText.innerText = 'Creating .ZIP archive...';
+      const zipContent = await zip.generateAsync({ type: 'blob' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(zipContent);
+      link.download = `resized_images_${targetW}x${targetH}.zip`;
+      link.click();
+    }
+
+    statusText.innerText = 'All images processed successfully!';
+    processBtn.disabled = false;
+  }
+
+  function processSingleImage(file, targetW, targetH, format, quality, anchor) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = targetW;
+        canvas.height = targetH;
+        const ctx = canvas.getContext('2d');
+
+        // Center / Anchor Crop Calculation
+        const targetRatio = targetW / targetH;
+        const imgRatio = img.width / img.height;
+        let cropW = img.width;
+        let cropH = img.height;
+
+        if (imgRatio > targetRatio) {
+          cropW = img.height * targetRatio;
+        } else {
+          cropH = img.width / targetRatio;
         }
 
-        async function processImages() {
-            if (selectedFiles.length === 0) return alert("Please select images first.");
-            
-            const [targetW, targetH] = document.getElementById('size-selector').value.split(',').map(Number);
-            document.getElementById('status').innerText = "Processing...";
+        const startX = (img.width - cropW) * anchor.x;
+        const startY = (img.height - cropH) * anchor.y;
 
-            for (let i = 0; i < selectedFiles.length; i++) {
-                const file = selectedFiles[i];
-                const img = new Image();
-                const url = URL.createObjectURL(file);
-                
-                await new Promise((resolve) => {
-                    img.onload = () => {
-                        const canvas = document.createElement('canvas');
-                        canvas.width = targetW;
-                        canvas.height = targetH;
-                        const ctx = canvas.getContext('2d');
-
-                        // Calculate center crop
-                        const targetRatio = targetW / targetH;
-                        const imgRatio = img.width / img.height;
-                        let startX = 0, startY = 0, drawW = img.width, drawH = img.height;
-
-                        if (imgRatio > targetRatio) {
-                            drawW = img.height * targetRatio;
-                            startX = (img.width - drawW) / 2;
-                        } else {
-                            drawH = img.width / targetRatio;
-                            startY = (img.height - drawH) / 2;
-                        }
-
-                        // Draw and export
-                        ctx.drawImage(img, startX, startY, drawW, drawH, 0, 0, targetW, targetH);
-                        canvas.toBlob((blob) => {
-                            const link = document.createElement('a');
-                            link.href = URL.createObjectURL(blob);
-                            link.download = `resized_${file.name}`;
-                            link.click();
-                            resolve();
-                        }, 'image/jpeg', 0.95);
-                    };
-                    img.src = url;
-                });
-            }
-            document.getElementById('status').innerText = "Done! Check your downloads folder.";
-            selectedFiles = []; // Reset
-        }
-    </script>
+        ctx.drawImage(img, startX, startY, cropW, cropH, 0, 0, targetW, targetH);
+        canvas.toBlob((blob) => resolve(blob), format, quality);
+      };
+      img.src = URL.createObjectURL(file);
+    });
+  }
+</script>
 </body>
 </html>
